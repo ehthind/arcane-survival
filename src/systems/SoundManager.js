@@ -331,41 +331,174 @@ export class SoundManager {
         noise.stop(t + 0.08);
     }
 
-    // --- AMBIENT MUSIC ---
+    // --- MEDIEVAL SYNTH MUSIC ---
 
     startMusic() {
         if (!this.enabled || this.musicPlaying) return;
         this.ensureContext();
         this.musicPlaying = true;
         this.musicGain = this.ctx.createGain();
-        this.musicGain.gain.value = 0.03;
+        this.musicGain.gain.value = 0.06;
         this.musicGain.connect(this.master);
-        this.playMusicLoop();
+        this._beat = 0;
+        this._bpm = 100;
+        this._beatDur = 60 / this._bpm;
+        // D Dorian: D E F G A B C D (medieval feel)
+        this._scale = [146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63, 293.66];
+        this._scaleLow = this._scale.map(f => f / 2);
+        this._melodyPatterns = [
+            [0, 2, 4, 7, 4, 2, 0, 4],   // ascending/descending run
+            [4, 3, 2, 0, 2, 4, 7, 4],   // arch shape
+            [0, 4, 3, 4, 2, 0, 7, 5],   // leaping
+            [7, 5, 4, 2, 0, 2, 4, 0],   // descending
+        ];
+        this._arpPatterns = [
+            [0, 4, 2, 4], // i - v - iii - v
+            [0, 2, 4, 7], // ascending
+            [4, 2, 0, 4], // rocking
+            [0, 7, 4, 2], // wide leap
+        ];
+        this._currentMelody = 0;
+        this._currentArp = 0;
+        this.playMusicPhrase();
     }
 
-    playMusicLoop() {
+    // Plucked lute tone — triangle + harmonic with fast decay
+    playLuteNote(freq, startTime, duration, volume = 0.5) {
         if (!this.musicPlaying) return;
-        const t = this.ctx.currentTime;
+        const ctx = this.ctx;
+        // Fundamental
+        const osc1 = ctx.createOscillator();
+        osc1.type = 'triangle';
+        osc1.frequency.value = freq;
+        // Second harmonic (octave) for brightness
+        const osc2 = ctx.createOscillator();
+        osc2.type = 'sine';
+        osc2.frequency.value = freq * 2;
+        // Third harmonic (faint)
+        const osc3 = ctx.createOscillator();
+        osc3.type = 'sine';
+        osc3.frequency.value = freq * 3;
 
-        // Dark ambient drone — layered oscillators
-        const notes = [65.4, 82.4, 98.0]; // C2, E2, G2 — dark minor triad
-        notes.forEach((freq, i) => {
-            const osc = this.ctx.createOscillator();
-            osc.type = i === 0 ? 'sine' : 'triangle';
-            osc.frequency.value = freq;
-            const gain = this.ctx.createGain();
-            const dur = 4;
-            gain.gain.setValueAtTime(0, t);
-            gain.gain.linearRampToValueAtTime(0.5, t + 0.5);
-            gain.gain.setValueAtTime(0.5, t + dur - 0.5);
-            gain.gain.linearRampToValueAtTime(0, t + dur);
-            osc.connect(gain).connect(this.musicGain);
-            osc.start(t);
-            osc.stop(t + dur);
-        });
+        const gain = ctx.createGain();
+        const g2 = ctx.createGain();
+        const g3 = ctx.createGain();
 
-        // Schedule next loop
-        this._musicTimeout = setTimeout(() => this.playMusicLoop(), 3800);
+        // Plucked string envelope — sharp attack, quick decay, gentle sustain
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(volume, startTime + 0.005);
+        gain.gain.exponentialRampToValueAtTime(volume * 0.35, startTime + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+        g2.gain.setValueAtTime(0, startTime);
+        g2.gain.linearRampToValueAtTime(volume * 0.2, startTime + 0.003);
+        g2.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.6);
+
+        g3.gain.setValueAtTime(0, startTime);
+        g3.gain.linearRampToValueAtTime(volume * 0.08, startTime + 0.002);
+        g3.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.3);
+
+        // Gentle low-pass to soften
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(freq * 6, startTime);
+        filter.frequency.exponentialRampToValueAtTime(freq * 2, startTime + duration);
+        filter.Q.value = 1;
+
+        osc1.connect(gain);
+        osc2.connect(g2);
+        osc3.connect(g3);
+        gain.connect(filter);
+        g2.connect(filter);
+        g3.connect(filter);
+        filter.connect(this.musicGain);
+
+        osc1.start(startTime);
+        osc2.start(startTime);
+        osc3.start(startTime);
+        osc1.stop(startTime + duration + 0.05);
+        osc2.stop(startTime + duration + 0.05);
+        osc3.stop(startTime + duration + 0.05);
+    }
+
+    // Drone note — sustained low fifth
+    playDrone(startTime, duration) {
+        if (!this.musicPlaying) return;
+        const ctx = this.ctx;
+        // D2 drone
+        const osc1 = ctx.createOscillator();
+        osc1.type = 'sine';
+        osc1.frequency.value = 73.42; // D2
+        // A2 — perfect fifth
+        const osc2 = ctx.createOscillator();
+        osc2.type = 'sine';
+        osc2.frequency.value = 110; // A2
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.25, startTime + 0.5);
+        gain.gain.setValueAtTime(0.25, startTime + duration - 0.5);
+        gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+        const g2 = ctx.createGain();
+        g2.gain.setValueAtTime(0, startTime);
+        g2.gain.linearRampToValueAtTime(0.12, startTime + 0.5);
+        g2.gain.setValueAtTime(0.12, startTime + duration - 0.5);
+        g2.gain.linearRampToValueAtTime(0, startTime + duration);
+
+        osc1.connect(gain).connect(this.musicGain);
+        osc2.connect(g2).connect(this.musicGain);
+        osc1.start(startTime);
+        osc2.start(startTime);
+        osc1.stop(startTime + duration + 0.1);
+        osc2.stop(startTime + duration + 0.1);
+    }
+
+    playMusicPhrase() {
+        if (!this.musicPlaying) return;
+        const t = this.ctx.currentTime + 0.05;
+        const bd = this._beatDur;
+        const phraseBeats = 8;
+        const phraseDur = phraseBeats * bd;
+
+        // Low drone — sustained through phrase
+        this.playDrone(t, phraseDur);
+
+        // Lute arpeggio — rhythmic plucked pattern (low register)
+        const arp = this._arpPatterns[this._currentArp % this._arpPatterns.length];
+        for (let i = 0; i < phraseBeats; i++) {
+            const note = this._scaleLow[arp[i % arp.length]];
+            this.playLuteNote(note, t + i * bd, bd * 0.8, 0.3);
+        }
+
+        // Melody — upper register plucked notes
+        const melody = this._melodyPatterns[this._currentMelody % this._melodyPatterns.length];
+        for (let i = 0; i < phraseBeats; i++) {
+            const note = this._scale[melody[i]];
+            const startTime = t + i * bd + bd * 0.5; // offset by half beat
+            const noteDur = bd * 0.7;
+            this.playLuteNote(note, startTime, noteDur, 0.4);
+        }
+
+        // Occasional high ornament (like a medieval trill)
+        if (Math.random() < 0.4) {
+            const ornamentBeat = Math.floor(Math.random() * 4) * 2;
+            const baseNote = this._scale[melody[ornamentBeat]];
+            const graceNote = baseNote * (9 / 8); // whole step above
+            this.playLuteNote(graceNote, t + ornamentBeat * bd + bd * 0.35, bd * 0.15, 0.15);
+        }
+
+        // Cycle through patterns
+        this._beat += phraseBeats;
+        if (this._beat % 16 === 0) {
+            this._currentMelody = (this._currentMelody + 1) % this._melodyPatterns.length;
+        }
+        if (this._beat % 8 === 0) {
+            this._currentArp = (this._currentArp + 1) % this._arpPatterns.length;
+        }
+
+        // Schedule next phrase
+        this._musicTimeout = setTimeout(() => this.playMusicPhrase(), phraseDur * 1000 - 50);
     }
 
     stopMusic() {
