@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { UpgradeManager } from '../systems/UpgradeManager.js';
+import { soundManager } from '../systems/SoundManager.js';
 
 export class GameScene extends Phaser.Scene {
     constructor() {
@@ -142,6 +143,10 @@ export class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-SPACE', () => {
             this.playerAttack();
         });
+
+        // Initialize sound & start music
+        soundManager.init();
+        soundManager.startMusic();
     }
 
     createArena() {
@@ -363,6 +368,7 @@ export class GameScene extends Phaser.Scene {
         this.bannerText = this.waveNumber % 5 === 0 ? `⚔ BOSS WAVE ${this.waveNumber} ⚔` : `Wave ${this.waveNumber}`;
         this.bannerTimer = 2;
         this.hudElements.banner.setText(this.bannerText).setAlpha(1);
+        soundManager.waveStart();
     }
 
     spawnEnemy() {
@@ -531,6 +537,8 @@ export class GameScene extends Phaser.Scene {
         const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, worldPointer.x, worldPointer.y);
         const damage = Math.round(18 * this.playerStats.damageMultiplier);
 
+        soundManager.magicBolt();
+
         const bolt = this.playerProjectiles.create(
             this.player.x + Math.cos(angle) * 20,
             this.player.y + Math.sin(angle) * 20,
@@ -562,6 +570,8 @@ export class GameScene extends Phaser.Scene {
 
         const damage = Math.round(this.playerStats.swordDamage * this.playerStats.damageMultiplier * berserkMult);
         let totalDmg = 0;
+
+        soundManager.swordSwing();
 
         // Sword swing — check enemies in arc
         this.enemies.getChildren().forEach(enemy => {
@@ -629,6 +639,7 @@ export class GameScene extends Phaser.Scene {
         const radius = 150 * this.playerStats.frostRadiusMult;
         const freezeDur = 2 + this.playerStats.frostDurationBonus;
         this.cameras.main.shake(150, 0.006);
+        soundManager.frostNova();
 
         this.enemies.getChildren().forEach(enemy => {
             if (!enemy.active) return;
@@ -679,6 +690,7 @@ export class GameScene extends Phaser.Scene {
         const dmg = Math.round(35 * this.playerStats.damageMultiplier * berserkMult);
         let totalDmg = 0;
         this.cameras.main.shake(200, 0.008);
+        soundManager.groundSlam();
 
         this.enemies.getChildren().forEach(enemy => {
             if (!enemy.active) return;
@@ -723,6 +735,7 @@ export class GameScene extends Phaser.Scene {
         enemy.hp -= damage;
         enemy.setTint(0xffffff);
         this.time.delayedCall(100, () => { if (enemy.active) enemy.clearTint(); });
+        soundManager.enemyHit();
 
         if (enemy.hp <= 0) {
             this.killEnemy(enemy);
@@ -731,6 +744,7 @@ export class GameScene extends Phaser.Scene {
 
     killEnemy(enemy) {
         this.score += enemy.scoreVal;
+        soundManager.enemyDeath();
 
         // Spawn gold
         const goldCount = Phaser.Math.Between(1, 2);
@@ -790,6 +804,7 @@ export class GameScene extends Phaser.Scene {
                 chain.hitEnemies = new Set(projectile.hitEnemies);
                 chain.setDepth(8);
                 this.time.delayedCall(1000, () => { if (chain.active) chain.destroy(); });
+                soundManager.chainLightning();
             }
         }
 
@@ -848,6 +863,7 @@ export class GameScene extends Phaser.Scene {
         this.cameras.main.shake(120, 0.004);
         this.hitEmitter.setPosition(this.player.x, this.player.y);
         this.hitEmitter.explode(8);
+        soundManager.playerHurt();
     }
 
     onPickupGold(player, gold) {
@@ -855,6 +871,7 @@ export class GameScene extends Phaser.Scene {
         this.playerStats.gold += gold.amount;
         this.goldEmitter.setPosition(gold.x, gold.y);
         this.goldEmitter.explode(6);
+        soundManager.goldPickup();
         gold.destroy();
     }
 
@@ -872,6 +889,7 @@ export class GameScene extends Phaser.Scene {
         const offers = this.upgradeManager.getRandomUpgrades(this.characterClass, 3);
         this.renderShop(overlay, offers);
         overlay.style.display = 'flex';
+        soundManager.shopOpen();
     }
 
     renderShop(overlay, offers) {
@@ -921,6 +939,7 @@ export class GameScene extends Phaser.Scene {
                 if (um.purchase(upgrade)) {
                     this.applyUpgradeSideEffects(upgrade.id);
                     this.renderShop(overlay, offers);
+                    soundManager.purchase();
                 }
             });
         });
@@ -987,6 +1006,8 @@ export class GameScene extends Phaser.Scene {
         this.player.setVelocity(0, 0);
         this.cameras.main.shake(300, 0.01);
         this.cameras.main.fade(800, 0, 0, 0);
+        soundManager.stopMusic();
+        soundManager.gameOver();
 
         this.time.delayedCall(1000, () => {
             this.scene.start('GameOverScene', {
