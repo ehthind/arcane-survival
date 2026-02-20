@@ -204,8 +204,9 @@ export class UpgradeManager {
                 break;
             case 'iron_fortress': {
                 const hpBonus = [0, 20, 35, 50][tier];
-                player.maxHealth = player.baseMaxHealth + hpBonus;
-                player.health = Math.min(player.health + hpBonus, player.maxHealth);
+                const baseMax = player.baseMaxHealth || player.baseMaxHP || 120;
+                player.maxHealth = baseMax + hpBonus;
+                // GameScene will read maxHealth and apply it to the sprite
                 break;
             }
             case 'earthquake':
