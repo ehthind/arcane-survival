@@ -18,21 +18,26 @@ export class CombatSystem {
                 // Player projectiles hit enemies
                 for (const enemy of enemies) {
                     if (enemy.dead) continue;
+                    if (proj.hitEnemies && proj.hitEnemies.has(enemy)) continue;
                     const dx = proj.x - enemy.x;
                     const dy = proj.y - enemy.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist < proj.radius + enemy.radius) {
                         enemy.takeDamage(proj.damage);
-                        proj.expired = true;
+
+                        // Call onHitEnemy for pierce/chain logic
+                        const consumed = proj.onHitEnemy(enemy);
+
                         // Impact particles
                         this.game.particles.emit(proj.x, proj.y, 6, {
                             colors: [proj.color, '#ffffff'],
-                            speed: 100,
-                            lifetime: 0.3,
-                            size: 3,
-                            sizeEnd: 0,
+                            speed: 100, lifetime: 0.3, size: 3, sizeEnd: 0,
                         });
-                        break;
+
+                        if (consumed) {
+                            proj.expired = true;
+                            break;
+                        }
                     }
                 }
             } else {
@@ -46,9 +51,7 @@ export class CombatSystem {
                     proj.expired = true;
                     this.game.particles.emit(proj.x, proj.y, 8, {
                         colors: ['#ef4444', '#ff6666'],
-                        speed: 80,
-                        lifetime: 0.3,
-                        size: 3,
+                        speed: 80, lifetime: 0.3, size: 3,
                     });
                 }
             }
@@ -66,7 +69,6 @@ export class CombatSystem {
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < enemy.radius + player.radius) {
                 player.takeDamage(enemy.damage);
-                // Push enemy back
                 if (dist > 0) {
                     const angle = Math.atan2(dy, dx);
                     enemy.x += Math.cos(angle) * 25;

@@ -13,26 +13,33 @@ export class HUD {
         // Health bar
         this.drawBar(ctx, 20, 20, 220, 22, player.health, player.maxHealth, '#ef4444', '#7f1d1d', '❤ HP');
 
+        // Shield bar (if has shield upgrade)
+        if (player.shieldMax > 0) {
+            this.drawBar(ctx, 20, 46, 180, 12, player.shield, player.shieldMax, '#c084fc', '#3b0764', '🛡 Shield');
+        }
+
         // Mana / energy bar
+        const manaY = player.shieldMax > 0 ? 62 : 50;
         if (player.mana !== undefined) {
             const manaColor = player.className === 'wizard' ? '#8b5cf6' : '#f97316';
-            this.drawBar(ctx, 20, 50, 180, 16, player.mana, player.maxMana, manaColor, '#1e1b4b', '✦ MP');
+            this.drawBar(ctx, 20, manaY, 180, 16, player.mana, player.maxMana, manaColor, '#1e1b4b', '✦ MP');
         }
 
         // Special cooldown
+        const cdY = manaY + 24;
         if (player.specialCooldown > 0) {
             const cdPct = player.specialCooldown / player.specialMaxCooldown;
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(20, 74, 120, 14);
+            ctx.fillRect(20, cdY, 120, 14);
             ctx.fillStyle = '#60a5fa';
-            ctx.fillRect(20, 74, 120 * (1 - cdPct), 14);
+            ctx.fillRect(20, cdY, 120 * (1 - cdPct), 14);
             ctx.fillStyle = '#fff';
             ctx.font = '10px "Inter", sans-serif';
-            ctx.fillText(`Special: ${player.specialCooldown.toFixed(1)}s`, 24, 84);
+            ctx.fillText(`Special: ${player.specialCooldown.toFixed(1)}s`, 24, cdY + 10);
         } else {
             ctx.fillStyle = '#4ade80';
             ctx.font = 'bold 11px "Inter", sans-serif';
-            ctx.fillText('⚡ Special Ready! [Right Click]', 22, 86);
+            ctx.fillText('⚡ Special Ready! [Right Click]', 22, cdY + 12);
         }
 
         // Wave info — top center
@@ -46,11 +53,16 @@ export class HUD {
         ctx.fillStyle = '#94a3b8';
         ctx.fillText(`Enemies: ${aliveEnemies}`, w / 2, 50);
 
-        // Score — top right
+        // Gold — top right
         ctx.textAlign = 'right';
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 20px "MedievalSharp", serif';
-        ctx.fillText(`⭐ ${this.game.score}`, w - 20, 30);
+        ctx.fillText(`🪙 ${player.gold}`, w - 20, 30);
+
+        // Score
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '14px "Inter", sans-serif';
+        ctx.fillText(`Score: ${this.game.score}`, w - 20, 50);
         ctx.textAlign = 'left';
 
         // Wave banner
@@ -73,7 +85,7 @@ export class HUD {
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
         ctx.font = '11px "Inter", sans-serif';
-        ctx.fillText('WASD to move • Left Click to attack • Right Click for special', w / 2, this.game.height - 15);
+        ctx.fillText('WASD to move • Left Click / Space to attack • Right Click for special', w / 2, this.game.height - 15);
         ctx.textAlign = 'left';
     }
 

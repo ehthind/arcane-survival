@@ -9,21 +9,71 @@ export class Player {
         this.radius = 18;
         this.health = 100;
         this.maxHealth = 100;
+        this.baseMaxHealth = 100;
         this.invincibleTimer = 0;
         this.invincibleDuration = 0.5;
         this.attackCooldown = 0;
+        this.attackRate = 0.3;
+        this.baseAttackRate = 0.3;
         this.specialCooldown = 0;
         this.specialMaxCooldown = 5;
-        this.facing = 0; // angle in radians
+        this.facing = 0;
         this.animTimer = 0;
         this.isAttacking = false;
         this.attackAnimTimer = 0;
         this.className = 'player';
         this.dead = false;
+        this.gold = 0;
+
+        // Upgrade stats
+        this.damageMultiplier = 1;
+        this.pierceCount = 0;
+        this.chainCount = 0;
+        this.lifesteal = 0;
+        this.thornsReflect = 0;
+        this.berserkerMult = 0;
+        this.slowAura = 0;
+        this.shield = 0;
+        this.shieldMax = 0;
+        this.shieldRechargeTimer = 0;
+        this.warCryInterval = 0;
+        this.warCryTimer = 0;
+        this.frostRadiusMult = 1;
+        this.frostDurationBonus = 0;
+        this.meteorCount = 0;
+        this.slamRadiusMult = 1;
     }
 
     takeDamage(amount) {
         if (this.invincibleTimer > 0) return;
+
+        // Shield absorb
+        if (this.shield > 0) {
+            const absorbed = Math.min(this.shield, amount);
+            this.shield -= absorbed;
+            amount -= absorbed;
+            this.shieldRechargeTimer = 5;
+            this.game.particles.emit(this.x, this.y, 6, {
+                colors: ['#c084fc', '#a855f7', '#ffffff'],
+                speed: 100, lifetime: 0.3, size: 3,
+            });
+            if (amount <= 0) return;
+        }
+
+        // Thorns reflect
+        if (this.thornsReflect > 0) {
+            // Apply to nearby enemies
+            for (const enemy of this.game.enemies) {
+                if (enemy.dead) continue;
+                const dx = enemy.x - this.x;
+                const dy = enemy.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < this.radius + enemy.radius + 10) {
+                    enemy.takeDamage(Math.round(amount * this.thornsReflect));
+                }
+            }
+        }
+
         this.health -= amount;
         this.invincibleTimer = this.invincibleDuration;
         this.game.addScreenShake(4, 0.15);
@@ -38,6 +88,7 @@ export class Player {
             this.dead = true;
         }
     }
+
 
     update(dt, input) {
         // Movement
@@ -77,6 +128,49 @@ export class Player {
         this.animTimer += dt;
         if (this.attackAnimTimer > 0) this.attackAnimTimer -= dt;
         else this.isAttacking = false;
+
+        // Shield recharge
+        if (this.shieldMax > 0 && this.shield < this.shieldMax) {
+            this.shieldRechargeTimer -= dt;
+            if (this.shieldRechargeTimer <= 0) {
+                this.shield = Math.min(this.shieldMax, this.shield + this.shieldMax * 0.1 * dt * 60);
+            }
+        }
+
+        // War Cry - periodic stun
+        if (this.warCryInterval > 0) {
+            this.warCryTimer -= dt;
+            if (this.warCryTimer <= 0) {
+                this.warCryTimer = this.warCryInterval;
+                for (const enemy of this.game.enemies) {
+                    if (enemy.dead) continue;
+                    const dx = enemy.x - this.x;
+                    const dy = enemy.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 200) {
+                        enemy.freeze(1.5);
+                    }
+                }
+                this.game.particles.emit(this.x, this.y, 25, {
+                    colors: ['#eab308', '#fbbf24', '#ffffff'],
+                    speed: 200, lifetime: 0.4, size: 4, sizeEnd: 1,
+                });
+                this.game.addScreenShake(3, 0.1);
+            }
+        }
+
+        // Slow aura
+        if (this.slowAura > 0) {
+            for (const enemy of this.game.enemies) {
+                if (enemy.dead || enemy.frozen) continue;
+                const dx = enemy.x - this.x;
+                const dy = enemy.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 180) {
+                    enemy.speed = enemy.baseSpeed ? enemy.baseSpeed * (1 - this.slowAura) : enemy.speed;
+                }
+            }
+        }
     }
 
     render(ctx) {

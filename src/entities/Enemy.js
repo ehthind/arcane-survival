@@ -1,3 +1,5 @@
+import { GoldDrop } from './GoldDrop.js';
+
 export class Enemy {
     constructor(game, x, y) {
         this.game = game;
@@ -6,6 +8,7 @@ export class Enemy {
         this.vx = 0;
         this.vy = 0;
         this.speed = 80;
+        this.baseSpeed = 80;
         this.radius = 14;
         this.health = 30;
         this.maxHealth = 30;
@@ -17,6 +20,7 @@ export class Enemy {
         this.hitFlashTimer = 0;
         this.type = 'enemy';
         this.scoreValue = 10;
+        this.goldValue = 5;
     }
 
     takeDamage(amount) {
@@ -38,6 +42,14 @@ export class Enemy {
         this.dead = true;
         this.deathTimer = 0.3;
         this.game.score += this.scoreValue;
+
+        // Drop gold
+        const goldCount = 1 + Math.floor(Math.random() * 2);
+        const perCoin = Math.ceil(this.goldValue / goldCount);
+        for (let i = 0; i < goldCount; i++) {
+            this.game.goldDrops.push(new GoldDrop(this.x, this.y, perCoin, this.game));
+        }
+
         // Death particles
         this.game.particles.emit(this.x, this.y, 12, {
             colors: this.deathColors || ['#ff6b6b', '#ffa500', '#ffdd00'],

@@ -16,6 +16,14 @@ export class Projectile {
         this.homing = opts.homing || false;
         this.homingStrength = opts.homingStrength || 1;
 
+        // Upgrade support
+        this.pierceCount = opts.pierceCount || 0;
+        this.pierced = 0;
+        this.chainCount = opts.chainCount || 0;
+        this.chainedFrom = opts.chainedFrom || null; // set of enemy ids we already hit
+        this.hitEnemies = opts.hitEnemies || new Set();
+        this.owner = opts.owner || null;
+
         this.vx = Math.cos(this.angle) * this.speed;
         this.vy = Math.sin(this.angle) * this.speed;
 
@@ -56,6 +64,69 @@ export class Projectile {
             this.y < arena.top - 50 || this.y > arena.bottom + 50) {
             this.expired = true;
         }
+    }
+
+    // Called when this projectile hits an enemy — returns true if should be consumed
+    onHitEnemy(enemy) {
+        this.hitEnemies.add(enemy);
+
+        // Chain lightning — spawn a new bolt toward nearest un-hit enemy
+        if (this.chainCount > 0 && this.isPlayerProjectile) {
+            let nearest = null;
+            let nearestDist = 200; // max chain range
+            for (const e of this.game.enemies) {
+                if (e.dead || this.hitEnemies.has(e)) continue;
+                const dx = e.x - enemy.x;
+                const dy = e.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = e;
+                }
+            }
+            if (nearest) {
+                const chainAngle = Math.atan2(nearest.y - enemy.y, nearest.x - enemy.x);
+                const chainProj = new Projectile({
+                    x: enemy.x, y: enemy.y,
+                    angle: chainAngle,
+                    speed: this.speed * 1.2,
+                    damage: Math.round(this.damage * 0.7),
+                    radius: this.radius * 0.8,
+                    lifetime: 0.8,
+                    color: '#facc15',
+                    trailColor: '#fbbf24',
+                    isPlayerProjectile: true,
+                    game: this.game,
+                    pierceCount: 0,
+                    chainCount: this.chainCount - 1,
+                    hitEnemies: new Set(this.hitEnemies),
+                    owner: this.owner,
+                });
+                this.game.projectiles.push(chainProj);
+
+                // Lightning visual
+                this.game.particles.emit(enemy.x, enemy.y, 4, {
+                    colors: ['#facc15', '#ffffff'],
+                    speed: 80, lifetime: 0.2, size: 2, sizeEnd: 0,
+                });
+            }
+        }
+
+        // Lifesteal on projectile hit (for wizard with vampiric-like upgrades isn't standard, but check owner)
+        if (this.owner && this.owner.lifesteal > 0 && this.isPlayerProjectile) {
+            const heal = Math.round(this.damage * this.owner.lifesteal);
+            if (heal > 0) {
+                this.owner.health = Math.min(this.owner.maxHealth, this.owner.health + heal);
+            }
+        }
+
+        // Piercing
+        if (this.pierceCount > 0 && this.pierced < this.pierceCount) {
+            this.pierced++;
+            return false; // don't consume
+        }
+
+        return true; // consume
     }
 
     render(ctx) {

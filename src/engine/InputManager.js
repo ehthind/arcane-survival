@@ -3,9 +3,11 @@ export class InputManager {
         this.canvas = canvas;
         this.keys = {};
         this.mouse = { x: 0, y: 0, down: false, clicked: false, rightClicked: false };
+        this.spaceAttack = false;
 
         this._onKeyDown = (e) => {
             this.keys[e.code] = true;
+            if (e.code === 'Space') this.spaceAttack = true;
             e.preventDefault();
         };
         this._onKeyUp = (e) => {
@@ -49,6 +51,7 @@ export class InputManager {
     endFrame() {
         this.mouse.clicked = false;
         this.mouse.rightClicked = false;
+        this.spaceAttack = false;
     }
 
     isDown(code) {

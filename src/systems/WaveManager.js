@@ -55,13 +55,8 @@ export class WaveManager {
             const aliveEnemies = this.game.enemies.filter(e => !e.dead).length;
             if (aliveEnemies === 0 && this.enemiesToSpawn === 0) {
                 this.waveActive = false;
-                this.intermissionTimer = this.intermissionDuration;
-            }
-        } else {
-            // Intermission
-            this.intermissionTimer -= dt;
-            if (this.intermissionTimer <= 0) {
-                this.startNextWave();
+                // Open shop instead of auto-starting next wave
+                this.game.openShop();
             }
         }
     }
